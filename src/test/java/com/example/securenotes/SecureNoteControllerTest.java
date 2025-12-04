@@ -1,6 +1,9 @@
 package com.example.securenotes;
 
 import com.example.securenotes.dto.NotesDto;
+import com.example.securenotes.model.Notes;
+import com.example.securenotes.repository.SecureNotesRepository;
+import com.example.securenotes.util.EncryptionUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +14,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -31,6 +36,12 @@ class SecureNoteControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
     private NotesDto createdNote;
+
+    @Autowired
+    private EncryptionUtil cryptoService;
+
+    @Autowired
+    private SecureNotesRepository notesRepository;
 
     /**
      * Create Dto for all API
@@ -130,7 +141,7 @@ class SecureNoteControllerTest {
                         .header("Authorization", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(createdNote.getId()))
-                .andExpect(jsonPath("$.title").value("Initial Note"))
+                .andExpect(jsonPath("$.title").value("Test Note"))
                 .andExpect(status().isOk());
     }
 
@@ -213,6 +224,34 @@ class SecureNoteControllerTest {
         mockMvc.perform(delete("/notes/" + createdNote.getId())
                         .header("Authorization","1234"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * DB store encrypted values
+     * @throws Exception
+     */
+    @Test
+    void testContentIsEncryptedInDatabase() throws Exception {
+        // Create a note
+        NotesDto request = new NotesDto();
+        request.setTitle("Encrypt Test");
+        request.setContent("Secret message");
+
+        String response = mockMvc.perform(post("/notes")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        NotesDto created = objectMapper.readValue(response, NotesDto.class);
+
+        Notes noteInDb = notesRepository.findById(created.getId()).orElseThrow();
+
+        System.out.println("Stored DB content: " + noteInDb.getContent());
+
+        assertNotEquals("Secret message", noteInDb.getContent());
+        assertEquals("Secret message", cryptoService.decrypt(noteInDb.getContent()));
     }
 
 }
