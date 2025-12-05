@@ -7,11 +7,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/notes")
@@ -52,9 +54,14 @@ public class SecureNotesController {
     }
 
     @GetMapping()
-    public List<NotesDto> getAllNotes(HttpServletRequest request) {
+    public ResponseEntity<?> getAllNotes(HttpServletRequest request) {
         authenticate(request);
-        return secureNoteService.getAllNotes();
+        List<NotesDto> notesDto = secureNoteService.getAllNotes();
+        if (notesDto.isEmpty()) {
+            return ResponseEntity.ok(Map.of("message", "No records found"));
+        }
+
+        return ResponseEntity.ok(notesDto);
     }
 
     @PutMapping("/{id}")
